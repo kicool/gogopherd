@@ -7,9 +7,9 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,7 +29,7 @@ func main() {
 	}
 	for {
 		c, err := ln.Accept()
-		if err == os.EOF {
+		if err == io.EOF {
 			return
 		}
 		go serve(c)
@@ -42,7 +42,7 @@ func getDocDir() string {
 		if err != nil {
 			log.Fatalf("failed to stat root %q: %v", *root, err)
 		}
-		if !fi.IsDirectory() {
+		if !fi.IsDir() {
 			log.Fatalf("root %q isn't a directory", *root)
 		}
 		return *root
@@ -78,7 +78,7 @@ func serve(c net.Conn) {
 		return
 	}
 	switch {
-	case fi.IsDirectory():
+	case fi.IsDir():
 		f, err := os.Open(fileName)
 		if err == nil {
 			fis, err := f.Readdir(-1)
@@ -86,17 +86,17 @@ func serve(c net.Conn) {
 			if err == nil {
 				for _, fi := range fis {
 					fmt.Fprintf(bw, "%s%s\r\n",
-						itemType(&fi),
+						itemType(fi),
 						strings.Join([]string{
-							fi.Name,
-							line + "/" + fi.Name,
+							fi.Name(),
+							line + "/" + fi.Name(),
 							"127.0.0.1",
 							"70",
 						}, "\t"))
 				}
 			}
 		}
-	case fi.IsRegular():
+	case !fi.IsDir():
 		f, err := os.Open(fileName)
 		if err != nil {
 			log.Printf("Open: ", err)
@@ -108,11 +108,11 @@ func serve(c net.Conn) {
 	}
 }
 
-func itemType(fi *os.FileInfo) string {
-	if fi.IsDirectory() {
+func itemType(fi os.FileInfo) string {
+	if fi.IsDir() {
 		return "1"
 	}
-	name := fi.Name
+	name := fi.Name()
 	switch {
 	case strings.HasPrefix(name, ".html"):
 		return "h"
@@ -135,7 +135,7 @@ type byFileName []os.FileInfo
 
 func (s byFileName) Len() int { return len(s) }
 func (s byFileName) Less(i, j int) bool {
-	return s[i].Name < s[j].Name
+	return s[i].Name() < s[j].Name()
 }
 func (s byFileName) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
